@@ -1,66 +1,71 @@
 # srvcs-inverselerp
 
-The inverse-linear-interpolation orchestrator of the srvcs.cloud distributed
-standard library.
+## Name
 
-Its single concern: **range: inverse linear interpolation (where value lies
-between a and b).** It owns the *control flow* — composing two float primitives
-— but does no arithmetic of its own. It asks
-[`srvcs-floatsubtract`](https://github.com/srvcs/floatsubtract) for the
-numerator and denominator, then
-[`srvcs-floatdivide`](https://github.com/srvcs/floatdivide) for their quotient.
+| Field | Value |
+| --- | --- |
+| Service | `srvcs-inverselerp` |
+| Slug | `inverselerp` |
+| Repository | `srvcs/inverselerp` |
+| Package | `srvcs-inverselerp` |
+| Kind | `orchestrator` |
 
-```
-inverselerp(a, b, value):
-    num = floatsubtract(value, a)   # value - a
-    den = floatsubtract(b, a)       # b - a
-    return floatdivide(num, den)    # (value - a) / (b - a)
-```
+## Function
 
-`inverselerp(0, 10, 5) == 0.5`.
+range: inverse linear interpolation (where value lies between a and b)
 
-Validation is not handled here. This service never calls `srvcs-isnumber`
-directly; instead its dependencies validate their own operands, and any `422`
-they raise is forwarded verbatim.
+## Dependencies
+
+| Dependency | Repository |
+| --- | --- |
+| `srvcs-floatsubtract` | [srvcs/floatsubtract](https://github.com/srvcs/floatsubtract) |
+| `srvcs-floatdivide` | [srvcs/floatdivide](https://github.com/srvcs/floatdivide) |
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Service identity, concern, and dependency list |
-| `POST` | `/` | Compute `inverselerp(a, b, value)` |
-| `GET` | `/healthz` `/readyz` `/metrics` `/openapi.json` | srvcs service standard surface |
+| `GET` | `/` | Service identity |
+| `POST` | `/` | Evaluate the service function |
+| `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/openapi.json` | OpenAPI document |
 
-```sh
-curl -s -X POST localhost:8080/ -H 'content-type: application/json' -d '{"a": 0, "b": 10, "value": 5}'
-# {"a":0,"b":10,"value":5,"result":0.5}
-```
+## Inputs
 
-Responses:
+| Name | Type | Required |
+| --- | --- | --- |
+| `a` | `json` | yes |
+| `b` | `json` | yes |
+| `value` | `json` | yes |
 
-- `200 {"a": a, "b": b, "value": value, "result": f}` — evaluated; `result` is a
-  float.
-- `422` — a dependency rejected the input, forwarded verbatim.
-- `500` — a reachable dependency returned a `200` without a float `result`
-  (a contract violation).
-- `503` — a dependency is unavailable.
+## Outputs
 
-## Dependencies
-
-- [`srvcs-floatsubtract`](https://github.com/srvcs/floatsubtract)
-- [`srvcs-floatdivide`](https://github.com/srvcs/floatdivide)
+| Name | Type |
+| --- | --- |
+| `a` | `json` |
+| `b` | `json` |
+| `value` | `json` |
+| `result` | `number` |
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SRVCS_BIND_ADDR` | `0.0.0.0:8080` | Bind address |
-| `SRVCS_FLOATSUBTRACT_URL` | `http://127.0.0.1:8090` | Base URL of `srvcs-floatsubtract` |
-| `SRVCS_FLOATDIVIDE_URL` | `http://127.0.0.1:8091` | Base URL of `srvcs-floatdivide` |
 | `SRVCS_ENV` | `development` | Environment label for logs |
 | `RUST_LOG` | `info,tower_http=info` | Tracing filter |
+| `SRVCS_FLOATDIVIDE_URL` | `http://127.0.0.1:8091` | Base URL for srvcs-floatdivide |
+| `SRVCS_FLOATSUBTRACT_URL` | `` | Base URL for srvcs-floatsubtract |
 
-## Local checks
+## Error Behavior
+
+- `422` means the request could not be evaluated for the documented input shape.
+- `503` means a required dependency was unavailable or returned an unexpected response.
+- Dependency validation errors are forwarded when this service delegates validation.
+
+## Local Checks
 
 ```sh
 cargo fmt --check
@@ -68,11 +73,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Orchestration tests stand up *computing* mock `srvcs-floatsubtract` and
-`srvcs-floatdivide` services in-process — they read the request body and return
-the real `a - b` / `a / b`, so the composition is genuinely exercised against
-the asserted cases (within `1e-9` tolerance). See
-[`srvcs/platform`](https://github.com/srvcs/platform) for the shared standard.
+See the [srvcs service standard](https://github.com/srvcs/platform/blob/main/STANDARD.md) for the full operational contract.
 
-> Note: the `cargoHash` in `flake.nix` is inherited from the template and must be
-> refreshed with a `nix build` before the Nix gates pass.
+## Metadata
+
+Machine-readable service metadata lives in `srvcs.yaml`. Keep it aligned with this README when the service contract changes.
